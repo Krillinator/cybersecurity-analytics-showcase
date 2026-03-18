@@ -4,12 +4,8 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.9"
-<<<<<<< Updated upstream
-dependencies = []
-=======
 dependencies = [
     "fastapi[standard]>=0.128.8",
     "matplotlib>=3.9.4",
     "pandas>=2.3.3",
 ]
->>>>>>> Stashed changes
