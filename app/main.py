@@ -124,8 +124,7 @@ def root():
 def debug_data():
     return {
         "info": "DEBUG ONLY - Exposes internal demo data for learning purposes",
-        "partners": partners,
-        "transactions": transactions
+        "transactions": transactions # Although seemingly normal - a huge risk waiting
     }
 
 
