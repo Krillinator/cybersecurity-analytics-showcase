@@ -1,5 +1,11 @@
 # Run NordPay Demo
 
+Welcome to the project! Here, we showcase a simple and easy-to-understand example using FastAPI, endpoints, authentication, and verification.
+
+For this exercise, assume that you do **NOT** know anything about the codebase beyond what is introduced in the steps below. This will help you get the most out of the learning experience.
+
+Thank you, and have fun!
+
 ## Clone Project
 
 ```bash
@@ -49,6 +55,9 @@ curl http://localhost:8000/transactions \
 
 Save the transaction_id for later.
 
+Answer:
+<details> The access token is in the form of a JWT</details>
+
 ---
 
 ## Step 3 – Refund
@@ -59,16 +68,21 @@ curl -X POST http://localhost:8000/refund \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{"transaction_id":"tx_1001","amount":500}'
 ```
-
+You can get additional commands by requesting:
+```bash
+curl http://localhost:8000/
+```
 ---
 
 ## Step 4 – Swagger
 
-Open:
-http://localhost:8000/docs
+FastAPI uses swagger under the hood. Exposing endpoints.
+Perhaps we can find something interesting there?
 
-Question:
-Can you find additional endpoints?
+Hint: https://fastapi.tiangolo.com/features/#automatic-docs
+
+Answer:
+<details> open: http://localhost:8000/docs </details>
 
 ---
 
