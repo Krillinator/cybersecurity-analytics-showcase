@@ -1,30 +1,28 @@
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+
+import jwt
 from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
-from typing import Optional
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI(title="NordPay Demo", version="1.0.0")
 
+JWT_SECRET = os.getenv("JWT_SECRET")
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+JWT_EXPIRES_DAYS = int(os.getenv("JWT_EXPIRES_DAYS", 30))
 
-# Fake data / demo database
 partners = {
     "alpha": {
-        "password": "alpha123",
+        "password": os.getenv("ALPHA_PASSWORD"),
         "partner_id": "partner_alpha"
     },
     "beta": {
-        "password": "beta123",
+        "password": os.getenv("BETA_PASSWORD"),
         "partner_id": "partner_beta"
-    }
-}
-
-tokens = {
-    "token-alpha": {
-        "partner_id": "partner_alpha",
-        "username": "alpha"
-    },
-    "token-beta": {
-        "partner_id": "partner_beta",
-        "username": "beta"
     }
 }
 
@@ -58,7 +56,6 @@ transactions = {
 refund_log = []
 
 
-# Models
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -69,7 +66,19 @@ class RefundRequest(BaseModel):
     amount: int
 
 
-# Helper
+def create_access_token(username: str, partner_id: str) -> str:
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": username,
+        "partner_id": partner_id,
+        "iat": now,
+        "exp": now + timedelta(days=JWT_EXPIRES_DAYS),
+    }
+
+    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return token
+
+
 def get_current_partner(authorization: Optional[str]):
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing Authorization header")
@@ -79,23 +88,35 @@ def get_current_partner(authorization: Optional[str]):
 
     token = authorization.replace("Bearer ", "").strip()
 
-    current_partner = tokens.get(token)
-    if not current_partner:
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    return current_partner
+    username = payload.get("sub")
+    partner_id = payload.get("partner_id")
+
+    if not username or not partner_id:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+
+    return {
+        "username": username,
+        "partner_id": partner_id
+    }
 
 
-# Routes
 @app.get("/")
 def root():
     return {
         "message": "NordPay demo API is running",
         "commands": {
             "login": "/login first",
-            "personal-transactions": "/transactions list all personal transactions",
+            "personal-transactions": "/transactions list your transactions",
             "refund": "/refund - start a refund process",
-            },
+            "refund-log": "/refund-log - list your refund requests",
+        },
     }
 
 
@@ -104,7 +125,6 @@ def debug_data():
     return {
         "info": "DEBUG ONLY - Exposes internal demo data for learning purposes",
         "partners": partners,
-        "tokens": tokens,
         "transactions": transactions
     }
 
@@ -116,14 +136,15 @@ def login(data: LoginRequest):
     if not partner or partner["password"] != data.password:
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    if data.username == "alpha":
-        token = "token-alpha"
-    else:
-        token = "token-beta"
+    token = create_access_token(
+        username=data.username,
+        partner_id=partner["partner_id"]
+    )
 
     return {
         "access_token": token,
         "token_type": "bearer",
+        "expires_in_days": JWT_EXPIRES_DAYS,
         "partner_id": partner["partner_id"]
     }
 
@@ -144,13 +165,8 @@ def list_transactions(authorization: Optional[str] = Header(default=None)):
     }
 
 
-@app.get("/transactions/all")
-def list_all_transactions_for_demo():
-    return transactions
-
-
 @app.post("/refund")
-def refund_vulnerable(
+def refund_request(
     data: RefundRequest,
     authorization: Optional[str] = Header(default=None)
 ):
@@ -169,9 +185,9 @@ def refund_vulnerable(
     if data.amount > transaction["amount"]:
         raise HTTPException(status_code=400, detail="Refund amount exceeds original payment")
 
-
+    # Intentionally vulnerable:
+    # authenticated partner is known, but ownership of the transaction is NOT verified
     refund_log.append({
-        "mode": "vulnerable",
         "requested_by_partner": current_partner["partner_id"],
         "transaction_id": data.transaction_id,
         "transaction_owner_partner": transaction["partner_id"],
@@ -190,10 +206,17 @@ def refund_vulnerable(
     }
 
 
-
 @app.get("/refund-log")
-def get_refund_log():
+def get_refund_log(authorization: Optional[str] = Header(default=None)):
+    current_partner = get_current_partner(authorization)
+
+    visible_logs = [
+        entry for entry in refund_log
+        if entry["requested_by_partner"] == current_partner["partner_id"]
+    ]
+
     return {
-        "count": len(refund_log),
-        "entries": refund_log
+        "logged_in_as": current_partner["partner_id"],
+        "count": len(visible_logs),
+        "entries": visible_logs
     }

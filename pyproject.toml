@@ -8,4 +8,6 @@ dependencies = [
     "fastapi[standard]>=0.128.8",
     "matplotlib>=3.9.4",
     "pandas>=2.3.3",
+    "pyjwt>=2.12.1",
+    "python-dotenv>=1.2.1",
 ]
